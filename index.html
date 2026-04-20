@@ -4,6 +4,9 @@
   <title>Kroetz Fix-It</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <!-- ✅ PWA Manifest -->
+  <link rel="manifest" href="./manifest.json">
+
   <style>
     body {
       font-family: Arial;
@@ -82,6 +85,13 @@
     <button onclick="closeJobs()">Close</button>
   </div>
 
+  <!-- ✅ SERVICE WORKER -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js');
+    }
+  </script>
+
   <script>
     function generateQuote() {
       const customer = document.getElementById("customer").value;
@@ -107,8 +117,8 @@
       const description = document.getElementById("description").value;
       const total = document.getElementById("total").value;
 
-      if (!customer || !total) {
-        alert("Add customer and total first");
+      if (!customer || total === "" || isNaN(total)) {
+        alert("Add customer and valid total first");
         return;
       }
 
@@ -127,6 +137,7 @@
       saveJobs(jobs);
 
       alert("Job created!");
+      viewJobs(); // auto open jobs
     }
 
     // VIEW JOBS
@@ -138,6 +149,8 @@
 
       if (jobs.length === 0) {
         container.innerHTML = "<p>No jobs yet</p>";
+        document.getElementById("jobsScreen").style.display = "block";
+        return;
       }
 
       jobs.forEach(job => {
