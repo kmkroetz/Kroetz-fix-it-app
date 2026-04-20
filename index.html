@@ -3,13 +3,13 @@
 <head>
   <title>Kroetz Fix-It</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="manifest" href="/Kroetz-fix-it-app/manifest.json"> 
+  
+  <!-- FIXED path (lowercase) -->
+  <link rel="manifest" href="/kroetz-fix-it-app/manifest.json">
+  <meta name="theme-color" content="#000000">
 
-    <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/kroetz-fix-it-app/service-worker.js');
-}
-</script>
+  <!-- FIXED: wrap CSS -->
+  <style>
     body { font-family: Arial; padding: 20px; background:#f4f4f4; }
     h1 { text-align:center; }
     .card {
@@ -84,6 +84,12 @@ function displayQuotes() {
 displayQuotes();
 </script>
 
+<!-- MOVE service worker here -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/kroetz-fix-it-app/service-worker.js');
+}
+</script>
+
 </body>
 </html>
-``
