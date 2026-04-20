@@ -4,19 +4,11 @@
   <title>Kroetz Fix-It</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- ✅ PWA Manifest -->
   <link rel="manifest" href="./manifest.json">
 
   <style>
-    body {
-      font-family: Arial;
-      padding: 20px;
-      background: #f4f4f4;
-    }
-
-    h1 {
-      text-align: center;
-    }
+    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; }
 
     .card {
       background: white;
@@ -46,11 +38,9 @@
       margin-bottom: 5px;
     }
 
-    .item input {
-      flex: 1;
-    }
+    .item input { flex: 1; }
 
-    #jobsScreen {
+    #jobsScreen, #quotesScreen {
       position: fixed;
       top: 0;
       left: 0;
@@ -66,205 +56,272 @@
 
 <body>
 
-  <h1>Kroetz Fix-It</h1>
+<h1>Kroetz Fix-It</h1>
 
-  <div class="card">
-    <label>Customer Name</label>
-    <input type="text" id="customer">
+<div class="card">
+  <label>Customer Name</label>
+  <input type="text" id="customer">
 
-    <label>Description</label>
-    <textarea id="description"></textarea>
+  <label>Description</label>
+  <textarea id="description"></textarea>
 
-    <!-- ✅ ITEMIZED SECTION -->
-    <h3>Items</h3>
-    <div id="items"></div>
-    <button onclick="addItem()">+ Add Item</button>
+  <h3>Items</h3>
+  <div id="items"></div>
+  <button onclick="addItem()">+ Add Item</button>
 
-    <h3>Total: $<span id="total">0.00</span></h3>
+  <h3>Total: $<span id="total">0.00</span></h3>
 
-    <button onclick="generateQuote()">Generate Quote</button>
-    <button onclick="convertToJob()">Convert to Job</button>
-    <button onclick="viewJobs()">View Jobs</button>
-  </div>
+  <button onclick="generateQuote()">Generate Quote</button>
+  <button onclick="saveQuote()">Save Quote</button>
+  <button onclick="convertToJob()">Convert to Job</button>
+  <button onclick="viewQuotes()">View Quotes</button>
+  <button onclick="viewJobs()">View Jobs</button>
+</div>
 
-  <div class="card">
-    <h3>Quote Preview</h3>
-    <p id="quoteOutput">No quote yet</p>
-  </div>
+<div class="card">
+  <h3>Quote Preview</h3>
+  <p id="quoteOutput">No quote yet</p>
+</div>
 
-  <!-- JOBS SCREEN -->
-  <div id="jobsScreen">
-    <h2>Jobs</h2>
-    <div id="jobsList"></div>
-    <button onclick="closeJobs()">Close</button>
-  </div>
+<!-- QUOTES SCREEN -->
+<div id="quotesScreen">
+  <h2>Quotes</h2>
+  <div id="quotesList"></div>
+  <button onclick="closeQuotes()">Close</button>
+</div>
 
-  <!-- ✅ SERVICE WORKER -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js');
-    }
-  </script>
+<!-- JOBS SCREEN -->
+<div id="jobsScreen">
+  <h2>Jobs</h2>
+  <div id="jobsList"></div>
+  <button onclick="closeJobs()">Close</button>
+</div>
 
-  <script>
-    // =========================
-    // ITEM SYSTEM
-    // =========================
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js');
+}
 
-    function addItem(name = "", price = 0) {
-      const container = document.getElementById("items");
+// ================= ITEM SYSTEM =================
 
-      const div = document.createElement("div");
-      div.className = "item";
+function addItem(name = "", price = 0) {
+  const container = document.getElementById("items");
 
-      div.innerHTML = `
-        <input type="text" placeholder="Item (Labor, Parts)" value="${name}" class="item-name">
-        <input type="number" placeholder="Price" value="${price}" class="item-price" oninput="calculateTotal()">
-        <button onclick="this.parentElement.remove(); calculateTotal()">X</button>
-      `;
+  const div = document.createElement("div");
+  div.className = "item";
 
-      container.appendChild(div);
-    }
+  div.innerHTML = `
+    <input type="text" placeholder="Item" value="${name}" class="item-name">
+    <input type="number" placeholder="Price" value="${price}" class="item-price" oninput="calculateTotal()">
+    <button onclick="this.parentElement.remove(); calculateTotal()">X</button>
+  `;
 
-    function calculateTotal() {
-      let total = 0;
+  container.appendChild(div);
+}
 
-      document.querySelectorAll(".item-price").forEach(input => {
-        total += Number(input.value) || 0;
-      });
+function calculateTotal() {
+  let total = 0;
 
-      document.getElementById("total").innerText = total.toFixed(2);
-    }
+  document.querySelectorAll(".item-price").forEach(input => {
+    total += Number(input.value) || 0;
+  });
 
-    function getItems() {
-      const items = [];
+  document.getElementById("total").innerText = total.toFixed(2);
+}
 
-      document.querySelectorAll(".item").forEach(div => {
-        const name = div.querySelector(".item-name").value;
-        const price = div.querySelector(".item-price").value;
+function getItems() {
+  const items = [];
 
-        items.push({ name, price });
-      });
+  document.querySelectorAll(".item").forEach(div => {
+    const name = div.querySelector(".item-name").value;
+    const price = div.querySelector(".item-price").value;
+    items.push({ name, price });
+  });
 
-      return items;
-    }
+  return items;
+}
 
-    // =========================
-    // QUOTE
-    // =========================
+// ================= QUOTES =================
 
-    function generateQuote() {
-      const customer = document.getElementById("customer").value;
-      const description = document.getElementById("description").value;
-      const total = document.getElementById("total").innerText;
-      const items = getItems();
+function getQuotes() {
+  return JSON.parse(localStorage.getItem("quotes") || "[]");
+}
 
-      let itemsHTML = "<ul>";
-      items.forEach(item => {
-        itemsHTML += `<li>${item.name} - $${item.price}</li>`;
-      });
-      itemsHTML += "</ul>";
+function saveQuotes(quotes) {
+  localStorage.setItem("quotes", JSON.stringify(quotes));
+}
 
-      document.getElementById("quoteOutput").innerHTML =
-        `<strong>${customer}</strong><br>
-        ${description}<br>
+function saveQuote() {
+  const customer = document.getElementById("customer").value;
+  const description = document.getElementById("description").value;
+  const total = document.getElementById("total").innerText;
+  const items = getItems();
+
+  if (!customer || total === "0.00") {
+    alert("Add customer and items first");
+    return;
+  }
+
+  const quotes = getQuotes();
+
+  const newQuote = {
+    id: Date.now(),
+    customer,
+    description,
+    items,
+    total,
+    status: "Pending",
+    created: new Date().toLocaleString()
+  };
+
+  quotes.push(newQuote);
+  saveQuotes(quotes);
+
+  alert("Quote saved!");
+}
+
+function viewQuotes() {
+  const quotes = getQuotes();
+  const container = document.getElementById("quotesList");
+
+  container.innerHTML = "";
+
+  if (quotes.length === 0) {
+    container.innerHTML = "<p>No quotes yet</p>";
+    document.getElementById("quotesScreen").style.display = "block";
+    return;
+  }
+
+  quotes.forEach(q => {
+    let itemsHTML = "<ul>";
+    q.items.forEach(item => {
+      itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+    });
+    itemsHTML += "</ul>";
+
+    container.innerHTML += `
+      <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
+        <strong>${q.customer}</strong><br>
+        ${q.description}<br>
         ${itemsHTML}
-        <strong>Total: $${total}</strong>`;
-    }
+        Total: $${q.total}<br>
+        Status: ${q.status}<br>
+        <small>${q.created}</small>
+      </div>
+    `;
+  });
 
-    // =========================
-    // STORAGE
-    // =========================
+  document.getElementById("quotesScreen").style.display = "block";
+}
 
-    function getJobs() {
-      return JSON.parse(localStorage.getItem("jobs") || "[]");
-    }
+function closeQuotes() {
+  document.getElementById("quotesScreen").style.display = "none";
+}
 
-    function saveJobs(jobs) {
-      localStorage.setItem("jobs", JSON.stringify(jobs));
-    }
+// ================= QUOTE PREVIEW =================
 
-    // =========================
-    // CONVERT TO JOB
-    // =========================
+function generateQuote() {
+  const customer = document.getElementById("customer").value;
+  const description = document.getElementById("description").value;
+  const total = document.getElementById("total").innerText;
+  const items = getItems();
 
-    function convertToJob() {
-      const customer = document.getElementById("customer").value;
-      const description = document.getElementById("description").value;
-      const total = document.getElementById("total").innerText;
-      const items = getItems();
+  let itemsHTML = "<ul>";
+  items.forEach(item => {
+    itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+  });
+  itemsHTML += "</ul>";
 
-      if (!customer || total === "0.00") {
-        alert("Add customer and items first");
-        return;
-      }
+  document.getElementById("quoteOutput").innerHTML =
+    `<strong>${customer}</strong><br>
+    ${description}<br>
+    ${itemsHTML}
+    <strong>Total: $${total}</strong>`;
+}
 
-      const jobs = getJobs();
+// ================= JOBS =================
 
-      const newJob = {
-        id: Date.now(),
-        customer,
-        description,
-        items,
-        total,
-        status: "Pending",
-        created: new Date().toLocaleString()
-      };
+function getJobs() {
+  return JSON.parse(localStorage.getItem("jobs") || "[]");
+}
 
-      jobs.push(newJob);
-      saveJobs(jobs);
+function saveJobs(jobs) {
+  localStorage.setItem("jobs", JSON.stringify(jobs));
+}
 
-      alert("Job created!");
-      viewJobs();
-    }
+function convertToJob() {
+  const customer = document.getElementById("customer").value;
+  const description = document.getElementById("description").value;
+  const total = document.getElementById("total").innerText;
+  const items = getItems();
 
-    // =========================
-    // VIEW JOBS
-    // =========================
+  if (!customer || total === "0.00") {
+    alert("Add customer and items first");
+    return;
+  }
 
-    function viewJobs() {
-      const jobs = getJobs();
-      const container = document.getElementById("jobsList");
+  const jobs = getJobs();
 
-      container.innerHTML = "";
+  const newJob = {
+    id: Date.now(),
+    customer,
+    description,
+    items,
+    total,
+    status: "Pending",
+    created: new Date().toLocaleString()
+  };
 
-      if (jobs.length === 0) {
-        container.innerHTML = "<p>No jobs yet</p>";
-        document.getElementById("jobsScreen").style.display = "block";
-        return;
-      }
+  jobs.push(newJob);
+  saveJobs(jobs);
 
-      jobs.forEach(job => {
-        let itemsHTML = "<ul>";
-        job.items.forEach(item => {
-          itemsHTML += `<li>${item.name} - $${item.price}</li>`;
-        });
-        itemsHTML += "</ul>";
+  alert("Job created!");
+  viewJobs();
+}
 
-        container.innerHTML += `
-          <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
-            <strong>${job.customer}</strong><br>
-            ${job.description}<br>
-            ${itemsHTML}
-            Total: $${job.total}<br>
-            Status: ${job.status}<br>
-            <small>${job.created}</small>
-          </div>
-        `;
-      });
+function viewJobs() {
+  const jobs = getJobs();
+  const container = document.getElementById("jobsList");
 
-      document.getElementById("jobsScreen").style.display = "block";
-    }
+  container.innerHTML = "";
 
-    function closeJobs() {
-      document.getElementById("jobsScreen").style.display = "none";
-    }
+  if (jobs.length === 0) {
+    container.innerHTML = "<p>No jobs yet</p>";
+    document.getElementById("jobsScreen").style.display = "block";
+    return;
+  }
 
-    // AUTO ADD FIRST ITEM
-    window.onload = () => {
-      addItem();
-    };
-  </script>
+  jobs.forEach(job => {
+    let itemsHTML = "<ul>";
+    job.items.forEach(item => {
+      itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+    });
+    itemsHTML += "</ul>";
+
+    container.innerHTML += `
+      <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
+        <strong>${job.customer}</strong><br>
+        ${job.description}<br>
+        ${itemsHTML}
+        Total: $${job.total}<br>
+        Status: ${job.status}<br>
+        <small>${job.created}</small>
+      </div>
+    `;
+  });
+
+  document.getElementById("jobsScreen").style.display = "block";
+}
+
+function closeJobs() {
+  document.getElementById("jobsScreen").style.display = "none";
+}
+
+// AUTO ADD FIRST ITEM
+window.onload = () => {
+  addItem();
+};
+</script>
 
 </body>
 </html>
