@@ -40,6 +40,16 @@
       color: white;
     }
 
+    .item {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+
+    .item input {
+      flex: 1;
+    }
+
     #jobsScreen {
       position: fixed;
       top: 0;
@@ -65,8 +75,12 @@
     <label>Description</label>
     <textarea id="description"></textarea>
 
-    <label>Total ($)</label>
-    <input type="number" id="total" placeholder="Enter total">
+    <!-- ✅ ITEMIZED SECTION -->
+    <h3>Items</h3>
+    <div id="items"></div>
+    <button onclick="addItem()">+ Add Item</button>
+
+    <h3>Total: $<span id="total">0.00</span></h3>
 
     <button onclick="generateQuote()">Generate Quote</button>
     <button onclick="convertToJob()">Convert to Job</button>
@@ -93,16 +107,75 @@
   </script>
 
   <script>
+    // =========================
+    // ITEM SYSTEM
+    // =========================
+
+    function addItem(name = "", price = 0) {
+      const container = document.getElementById("items");
+
+      const div = document.createElement("div");
+      div.className = "item";
+
+      div.innerHTML = `
+        <input type="text" placeholder="Item (Labor, Parts)" value="${name}" class="item-name">
+        <input type="number" placeholder="Price" value="${price}" class="item-price" oninput="calculateTotal()">
+        <button onclick="this.parentElement.remove(); calculateTotal()">X</button>
+      `;
+
+      container.appendChild(div);
+    }
+
+    function calculateTotal() {
+      let total = 0;
+
+      document.querySelectorAll(".item-price").forEach(input => {
+        total += Number(input.value) || 0;
+      });
+
+      document.getElementById("total").innerText = total.toFixed(2);
+    }
+
+    function getItems() {
+      const items = [];
+
+      document.querySelectorAll(".item").forEach(div => {
+        const name = div.querySelector(".item-name").value;
+        const price = div.querySelector(".item-price").value;
+
+        items.push({ name, price });
+      });
+
+      return items;
+    }
+
+    // =========================
+    // QUOTE
+    // =========================
+
     function generateQuote() {
       const customer = document.getElementById("customer").value;
       const description = document.getElementById("description").value;
-      const total = document.getElementById("total").value;
+      const total = document.getElementById("total").innerText;
+      const items = getItems();
+
+      let itemsHTML = "<ul>";
+      items.forEach(item => {
+        itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+      });
+      itemsHTML += "</ul>";
 
       document.getElementById("quoteOutput").innerHTML =
-        `<strong>${customer}</strong><br>${description}<br>Total: $${total}`;
+        `<strong>${customer}</strong><br>
+        ${description}<br>
+        ${itemsHTML}
+        <strong>Total: $${total}</strong>`;
     }
 
+    // =========================
     // STORAGE
+    // =========================
+
     function getJobs() {
       return JSON.parse(localStorage.getItem("jobs") || "[]");
     }
@@ -111,14 +184,18 @@
       localStorage.setItem("jobs", JSON.stringify(jobs));
     }
 
+    // =========================
     // CONVERT TO JOB
+    // =========================
+
     function convertToJob() {
       const customer = document.getElementById("customer").value;
       const description = document.getElementById("description").value;
-      const total = document.getElementById("total").value;
+      const total = document.getElementById("total").innerText;
+      const items = getItems();
 
-      if (!customer || total === "" || isNaN(total)) {
-        alert("Add customer and valid total first");
+      if (!customer || total === "0.00") {
+        alert("Add customer and items first");
         return;
       }
 
@@ -128,6 +205,7 @@
         id: Date.now(),
         customer,
         description,
+        items,
         total,
         status: "Pending",
         created: new Date().toLocaleString()
@@ -137,10 +215,13 @@
       saveJobs(jobs);
 
       alert("Job created!");
-      viewJobs(); // auto open jobs
+      viewJobs();
     }
 
+    // =========================
     // VIEW JOBS
+    // =========================
+
     function viewJobs() {
       const jobs = getJobs();
       const container = document.getElementById("jobsList");
@@ -154,10 +235,17 @@
       }
 
       jobs.forEach(job => {
+        let itemsHTML = "<ul>";
+        job.items.forEach(item => {
+          itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+        });
+        itemsHTML += "</ul>";
+
         container.innerHTML += `
           <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
             <strong>${job.customer}</strong><br>
             ${job.description}<br>
+            ${itemsHTML}
             Total: $${job.total}<br>
             Status: ${job.status}<br>
             <small>${job.created}</small>
@@ -168,10 +256,14 @@
       document.getElementById("jobsScreen").style.display = "block";
     }
 
-    // CLOSE JOBS
     function closeJobs() {
       document.getElementById("jobsScreen").style.display = "none";
     }
+
+    // AUTO ADD FIRST ITEM
+    window.onload = () => {
+      addItem();
+    };
   </script>
 
 </body>
