@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "kroetz-fixit-v7";
+const CACHE_NAME = "kroetz-fixit-v2";
 
 const FILES_TO_CACHE = [
   "./",
