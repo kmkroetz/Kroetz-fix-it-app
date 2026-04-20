@@ -1,123 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Kroetz Fix-It</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <link rel="manifest" href="./manifest.json">
-
-  <style>
-    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-    h1 { text-align: center; }
-
-    .card {
-      background: white;
-      padding: 15px;
-      border-radius: 10px;
-      margin-bottom: 15px;
-    }
-
-    input, textarea {
-      width: 100%;
-      padding: 10px;
-      margin: 5px 0 10px 0;
-    }
-
-    button {
-      padding: 10px;
-      margin: 5px 5px 5px 0;
-      border: none;
-      border-radius: 5px;
-      background: #333;
-      color: white;
-    }
-
-    .item {
-      display: flex;
-      gap: 5px;
-      margin-bottom: 5px;
-    }
-
-    .item input { flex: 1; }
-
-    #jobsScreen, #quotesScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: white;
-      overflow: auto;
-      padding: 20px;
-      display: none;
-    }
-  </style>
-</head>
-
-<body>
-
-<h1>Kroetz Fix-It</h1>
-
-<div class="card">
-  <label>Customer Name</label>
-  <input type="text" id="customer">
-
-  <label>Description</label>
-  <textarea id="description"></textarea>
-
-  <h3>Items</h3>
-  <div id="items"></div>
-  <button onclick="addItem()">+ Add Item</button>
-
-  <h3>Total: $<span id="total">0.00</span></h3>
-
-  <button onclick="generateQuote()">Generate Quote</button>
-  <button onclick="saveQuote()">Save Quote</button>
-  <button onclick="convertToJob()">Convert to Job</button>
-  <button onclick="viewQuotes()">View Quotes</button>
-  <button onclick="viewJobs()">View Jobs</button>
-  <button onclick="alert('JS working')">Test</button>
-</div>
-
-<div class="card">
-  <h3>Quote Preview</h3>
-  <p id="quoteOutput">No quote yet</p>
-</div>
-
-<!-- QUOTES SCREEN -->
-<div id="quotesScreen">
-  <h2>Quotes</h2>
-  <div id="quotesList"></div>
-  <button onclick="closeQuotes()">Close</button>
-</div>
-
-
-  
-<!-- JOBS SCREEN -->
-<div id="jobsScreen">
-  <h2>Jobs</h2>
-  <div id="jobsList"></div>
-  <button onclick="closeJobs()">Close</button>
-</div>
-
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./service-worker.js');
 }
 
-// ================= ITEM SYSTEM =================
-
+// ITEM SYSTEM
 function addItem(name = "", price = 0) {
   const container = document.getElementById("items");
 
   const div = document.createElement("div");
   div.className = "item";
 
-  div.innerHTML = `
-    <input type="text" placeholder="Item" value="${name}" class="item-name">
-    <input type="number" placeholder="Price" value="${price}" class="item-price" oninput="calculateTotal()">
-    <button onclick="this.parentElement.remove(); calculateTotal()">X</button>
-  `;
+  div.innerHTML =
+    '<input type="text" placeholder="Item" value="' + name + '" class="item-name">' +
+    '<input type="number" placeholder="Price" value="' + price + '" class="item-price" oninput="calculateTotal()">' +
+    '<button onclick="this.parentElement.remove(); calculateTotal()">X</button>';
 
   container.appendChild(div);
 }
@@ -144,8 +40,7 @@ function getItems() {
   return items;
 }
 
-// ================= QUOTES =================
-
+// QUOTES
 function getQuotes() {
   return JSON.parse(localStorage.getItem("quotes") || "[]");
 }
@@ -167,83 +62,53 @@ function saveQuote() {
 
   const quotes = getQuotes();
 
-  const newQuote = {
+  quotes.push({
     id: Date.now(),
     customer,
     description,
     items,
     total,
-    status: "Pending",
     created: new Date().toLocaleString()
-  };
+  });
 
-  quotes.push(newQuote);
   saveQuotes(quotes);
-
   alert("Quote saved!");
 }
 
 function viewQuotes() {
-  const quotes = getQuotes();
+  const screen = document.getElementById("quotesScreen");
   const container = document.getElementById("quotesList");
 
+  screen.style.display = "block";
+
+  const quotes = getQuotes();
   container.innerHTML = "";
 
   if (quotes.length === 0) {
     container.innerHTML = "<p>No quotes yet</p>";
-    document.getElementById("quotesScreen").style.display = "block";
     return;
   }
 
   quotes.forEach(q => {
-    let itemsHTML = "<ul>";
-    q.items.forEach(item => {
-      itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+    let html = "<div style='border:1px solid #ccc; padding:10px; margin:10px 0;'>";
+    html += "<strong>" + q.customer + "</strong><br>";
+    html += q.description + "<br><ul>";
+
+    q.items.forEach(i => {
+      html += "<li>" + i.name + " - $" + i.price + "</li>";
     });
-    itemsHTML += "</ul>";
 
-    container.innerHTML += `
-      <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
-        <strong>${q.customer}</strong><br>
-        ${q.description}<br>
-        ${itemsHTML}
-        Total: $${q.total}<br>
-        Status: ${q.status}<br>
-        <small>${q.created}</small>
-      </div>
-    `;
+    html += "</ul>Total: $" + q.total + "</div>";
+
+    container.innerHTML += html;
   });
-
-  document.getElementById("quotesScreen").style.display = "block";
 }
 
 function closeQuotes() {
   document.getElementById("quotesScreen").style.display = "none";
 }
 
-// ================= QUOTE PREVIEW =================
-
-function generateQuote() {
-  const customer = document.getElementById("customer").value;
-  const description = document.getElementById("description").value;
-  const total = document.getElementById("total").innerText;
-  const items = getItems();
-
-  let itemsHTML = "<ul>";
-  items.forEach(item => {
-    itemsHTML += `<li>${item.name} - $${item.price}</li>`;
-  });
-  itemsHTML += "</ul>";
-
-  document.getElementById("quoteOutput").innerHTML =
-    `<strong>${customer}</strong><br>
-    ${description}<br>
-    ${itemsHTML}
-    <strong>Total: $${total}</strong>`;
-}
-
-// ================= JOBS =================
-
+// JOBS
 function getJobs() {
   return JSON.parse(localStorage.getItem("jobs") || "[]");
 }
@@ -265,66 +130,72 @@ function convertToJob() {
 
   const jobs = getJobs();
 
-  const newJob = {
+  jobs.push({
     id: Date.now(),
     customer,
     description,
     items,
     total,
-    status: "Pending",
     created: new Date().toLocaleString()
-  };
+  });
 
-  jobs.push(newJob);
   saveJobs(jobs);
-
   alert("Job created!");
-  viewJobs();
 }
 
 function viewJobs() {
-  const jobs = getJobs();
+  const screen = document.getElementById("jobsScreen");
   const container = document.getElementById("jobsList");
 
+  screen.style.display = "block";
+
+  const jobs = getJobs();
   container.innerHTML = "";
 
   if (jobs.length === 0) {
     container.innerHTML = "<p>No jobs yet</p>";
-    document.getElementById("jobsScreen").style.display = "block";
     return;
   }
 
-  jobs.forEach(job => {
-    let itemsHTML = "<ul>";
-    job.items.forEach(item => {
-      itemsHTML += `<li>${item.name} - $${item.price}</li>`;
+  jobs.forEach(j => {
+    let html = "<div style='border:1px solid #ccc; padding:10px; margin:10px 0;'>";
+    html += "<strong>" + j.customer + "</strong><br>";
+    html += j.description + "<br><ul>";
+
+    j.items.forEach(i => {
+      html += "<li>" + i.name + " - $" + i.price + "</li>";
     });
-    itemsHTML += "</ul>";
 
-    container.innerHTML += `
-      <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
-        <strong>${job.customer}</strong><br>
-        ${job.description}<br>
-        ${itemsHTML}
-        Total: $${job.total}<br>
-        Status: ${job.status}<br>
-        <small>${job.created}</small>
-      </div>
-    `;
+    html += "</ul>Total: $" + j.total + "</div>";
+
+    container.innerHTML += html;
   });
-
-  document.getElementById("jobsScreen").style.display = "block";
 }
 
 function closeJobs() {
   document.getElementById("jobsScreen").style.display = "none";
 }
 
-// AUTO ADD FIRST ITEM
-window.onload = () => {
+// QUOTE PREVIEW
+function generateQuote() {
+  const customer = document.getElementById("customer").value;
+  const description = document.getElementById("description").value;
+  const total = document.getElementById("total").innerText;
+  const items = getItems();
+
+  let html = "<strong>" + customer + "</strong><br>" + description + "<ul>";
+
+  items.forEach(i => {
+    html += "<li>" + i.name + " - $" + i.price + "</li>";
+  });
+
+  html += "</ul><strong>Total: $" + total + "</strong>";
+
+  document.getElementById("quoteOutput").innerHTML = html;
+}
+
+// INIT
+window.onload = function() {
   addItem();
 };
 </script>
-
-</body>
-</html>
