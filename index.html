@@ -1,181 +1,80 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Kroetz Fix-It</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <style>
-    body { font-family: Arial; margin: 0; }
-    .nav {
-      display: flex;
-      background: #111;
-    }
-    .nav button {
-      flex: 1;
-      padding: 15px;
-      color: white;
-      background: #111;
-      border: none;
-      font-size: 16px;
-    }
-    .nav button:hover {
-      background: red;
-    }
-    .page {
-      display: none;
-      padding: 20px;
-    }
-    .active {
-      display: block;
-    }
-    input, textarea {
-      width: 100%;
-      margin: 5px 0;
-      padding: 10px;
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="nav">
-  <button onclick="showPage('customers')">Customers</button>
-  <button onclick="showPage('quotes')">Quotes</button>
-  <button onclick="showPage('jobs')">Jobs</button>
-  <button onclick="showPage('invoices')">Invoices</button>
-</div>
-
-<!-- CUSTOMERS -->
-<div id="customers" class="page active">
-  <h2>Customers</h2>
-  <input id="custName" placeholder="Customer Name">
-  <input id="custPhone" placeholder="Phone">
-  <button onclick="saveCustomer()">Save</button>
-  <div id="customerList"></div>
-</div>
-
-<!-- QUOTES -->
-<div id="quotes" class="page">
-  <h2>Quotes</h2>
-  <input id="quoteDesc" placeholder="Job Description">
-  <input id="quotePrice" placeholder="Price">
-  <button onclick="saveQuote()">Save Quote</button>
-  <div id="quoteList"></div>
-</div>
-
-<!-- JOBS -->
-<div id="jobs" class="page">
-  <h2>Jobs</h2>
-  <input id="jobName" placeholder="Job Name">
-  <button onclick="saveJob()">Save Job</button>
-  <div id="jobList"></div>
-</div>
-
-<!-- INVOICES -->
-<div id="invoices" class="page">
-  <h2>Invoices</h2>
-  <input id="invoiceName" placeholder="Customer">
-  <input id="invoiceTotal" placeholder="Total">
-  <button onclick="saveInvoice()">Save Invoice</button>
-  <div id="invoiceList"></div>
-</div>
-
 <script>
-function showPage(pageId) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById(pageId).classList.add('active');
-}
-
-// STORAGE HELPERS
+// STORAGE
 function getData(key) {
   return JSON.parse(localStorage.getItem(key)) || [];
 }
-
 function saveData(key, data) {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
 // CUSTOMERS
-function saveCustomer() {
-  let data = getData('customers');
-  data.push({
-    name: document.getElementById('custName').value,
-    phone: document.getElementById('custPhone').value
-  });
-  saveData('customers', data);
-  renderCustomers();
-}
-
-function renderCustomers() {
-  let list = document.getElementById('customerList');
-  list.innerHTML = "";
-  getData('customers').forEach(c => {
-    list.innerHTML += `<p>${c.name} - ${c.phone}</p>`;
-  });
+function addCustomer(name) {
+  let customers = getData('customers');
+  customers.push({ id: Date.now(), name });
+  saveData('customers', customers);
 }
 
 // QUOTES
-function saveQuote() {
-  let data = getData('quotes');
-  data.push({
-    desc: document.getElementById('quoteDesc').value,
-    price: document.getElementById('quotePrice').value
+function addQuote(customerId, desc, price) {
+  let quotes = getData('quotes');
+  quotes.push({
+    id: Date.now(),
+    customerId,
+    desc,
+    price,
+    status: "Draft"
   });
-  saveData('quotes', data);
-  renderQuotes();
+  saveData('quotes', quotes);
 }
 
-function renderQuotes() {
-  let list = document.getElementById('quoteList');
-  list.innerHTML = "";
-  getData('quotes').forEach(q => {
-    list.innerHTML += `<p>${q.desc} - $${q.price}</p>`;
+// APPROVE QUOTE → CREATE JOB
+function approveQuote(quoteId) {
+  let quotes = getData('quotes');
+  let jobs = getData('jobs');
+
+  let quote = quotes.find(q => q.id === quoteId);
+  quote.status = "Approved";
+
+  jobs.push({
+    id: Date.now(),
+    quoteId: quote.id,
+    customerId: quote.customerId,
+    desc: quote.desc,
+    status: "Scheduled",
+    hours: 0
   });
+
+  saveData('quotes', quotes);
+  saveData('jobs', jobs);
 }
 
-// JOBS
-function saveJob() {
-  let data = getData('jobs');
-  data.push({
-    name: document.getElementById('jobName').value
+// COMPLETE JOB → CREATE INVOICE
+function completeJob(jobId) {
+  let jobs = getData('jobs');
+  let invoices = getData('invoices');
+
+  let job = jobs.find(j => j.id === jobId);
+  job.status = "Done";
+
+  let laborTotal = job.hours * 90; // your rate
+
+  invoices.push({
+    id: Date.now(),
+    jobId: job.id,
+    customerId: job.customerId,
+    total: laborTotal,
+    status: "Unpaid"
   });
-  saveData('jobs', data);
-  renderJobs();
+
+  saveData('jobs', jobs);
+  saveData('invoices', invoices);
 }
 
-function renderJobs() {
-  let list = document.getElementById('jobList');
-  list.innerHTML = "";
-  getData('jobs').forEach(j => {
-    list.innerHTML += `<p>${j.name}</p>`;
-  });
+// MARK INVOICE PAID
+function markPaid(invoiceId) {
+  let invoices = getData('invoices');
+  let invoice = invoices.find(i => i.id === invoiceId);
+  invoice.status = "Paid";
+  saveData('invoices', invoices);
 }
-
-// INVOICES
-function saveInvoice() {
-  let data = getData('invoices');
-  data.push({
-    name: document.getElementById('invoiceName').value,
-    total: document.getElementById('invoiceTotal').value
-  });
-  saveData('invoices', data);
-  renderInvoices();
-}
-
-function renderInvoices() {
-  let list = document.getElementById('invoiceList');
-  list.innerHTML = "";
-  getData('invoices').forEach(i => {
-    list.innerHTML += `<p>${i.name} - $${i.total}</p>`;
-  });
-}
-
-// LOAD ALL DATA ON START
-renderCustomers();
-renderQuotes();
-renderJobs();
-renderInvoices();
 </script>
-
-</body>
-</html>
