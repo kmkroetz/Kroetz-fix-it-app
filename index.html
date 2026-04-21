@@ -1,80 +1,209 @@
-<script>
-// STORAGE
-function getData(key) {
-  return JSON.parse(localStorage.getItem(key)) || [];
+<!DOCTYPE html><html>
+<head>
+  <title>Kroetz Fix-It Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">  <!-- Firebase -->  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>  <style>
+    body { font-family: Arial; margin: 0; background:#0d0d0d; color:white; }
+    .nav { display:flex; background:#000; }
+    .nav button { flex:1; padding:15px; background:#000; color:white; border:none; }
+    .nav button:hover { background:#b30000; }
+    .page { display:none; padding:15px; }
+    .active { display:block; }
+    input, select { width:100%; padding:10px; margin:5px 0; border:none; border-radius:5px; }
+    button.action { background:#b30000; color:white; padding:10px; border:none; margin-top:5px; border-radius:5px; }
+    .card { background:#1a1a1a; padding:12px; margin:10px 0; border-radius:10px; }
+  </style></head>
+<body><div class="nav">
+  <button onclick="showPage('dashboard')">Dashboard</button>
+  <button onclick="showPage('customers')">Customers</button>
+  <button onclick="showPage('quotes')">Quotes</button>
+  <button onclick="showPage('jobs')">Jobs</button>
+  <button onclick="showPage('invoices')">Invoices</button>
+</div><div id="dashboard" class="page active"><h2>Dashboard</h2><div id="stats"></div></div>
+<div id="customers" class="page"><h2>Customers</h2><input id="custName"><button class="action" onclick="addCustomer()">Add</button><div id="customerList"></div></div>
+<div id="quotes" class="page"><h2>Quotes</h2><select id="quoteCustomer"></select><input id="quoteDesc"><input id="quoteLabor"><input id="quoteMaterials"><button class="action" onclick="addQuote()">Create</button><div id="quoteList"></div></div>
+<div id="jobs" class="page"><h2>Jobs</h2><div id="jobList"></div></div>
+<div id="invoices" class="page"><h2>Invoices</h2><div id="invoiceList"></div></div><script>
+// 🔥 REPLACE WITH YOUR FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const LABOR_RATE = 90;
+const SERVICE_CALL = 75;
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  renderAll();
 }
-function saveData(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
+
+function getData(k){ return JSON.parse(localStorage.getItem(k))||[] }
+
+async function saveData(k,d){
+  localStorage.setItem(k,JSON.stringify(d));
+
+  // 🔥 AUTO BACKUP TO FIREBASE
+  await db.collection("backup").doc(k).set({ data: d });
+}
+
+async function loadFromCloud(){
+  const keys = ['customers','quotes','jobs','invoices'];
+
+  for (let k of keys){
+    let doc = await db.collection("backup").doc(k).get();
+    if(doc.exists){
+      localStorage.setItem(k, JSON.stringify(doc.data().data));
+    }
+  }
+  renderAll();
 }
 
 // CUSTOMERS
-function addCustomer(name) {
-  let customers = getData('customers');
-  customers.push({ id: Date.now(), name });
-  saveData('customers', customers);
+function addCustomer(){
+  let name=document.getElementById('custName').value;
+  if(!name) return;
+  let data=getData('customers');
+  data.push({id:Date.now(),name});
+  saveData('customers',data);
+  renderCustomers();
+}
+
+function renderCustomers(){
+  let list=document.getElementById('customerList');
+  let select=document.getElementById('quoteCustomer');
+  list.innerHTML=''; select.innerHTML='';
+  getData('customers').forEach(c=>{
+    list.innerHTML+=`<div class='card'>${c.name}</div>`;
+    select.innerHTML+=`<option value='${c.id}'>${c.name}</option>`;
+  });
 }
 
 // QUOTES
-function addQuote(customerId, desc, price) {
-  let quotes = getData('quotes');
-  quotes.push({
-    id: Date.now(),
-    customerId,
-    desc,
-    price,
-    status: "Draft"
+function addQuote(){
+  let customerId=document.getElementById('quoteCustomer').value;
+  let desc=document.getElementById('quoteDesc').value;
+  let labor=document.getElementById('quoteLabor').value||0;
+  let materials=document.getElementById('quoteMaterials').value||0;
+
+  let total = (labor * LABOR_RATE) + Number(materials) + SERVICE_CALL;
+
+  let data=getData('quotes');
+  data.push({id:Date.now(),customerId,desc,labor,materials,total,status:'Draft'});
+  saveData('quotes',data);
+  renderQuotes();
+}
+
+function approveQuote(id){
+  let quotes=getData('quotes');
+  let jobs=getData('jobs');
+  let q=quotes.find(x=>x.id==id);
+  q.status='Approved';
+
+  jobs.push({id:Date.now(),customerId:q.customerId,desc:q.desc,labor:q.labor,materials:q.materials,status:'Scheduled'});
+
+  saveData('quotes',quotes);
+  saveData('jobs',jobs);
+}
+
+function renderQuotes(){
+  let list=document.getElementById('quoteList');
+  list.innerHTML='';
+  let customers=getData('customers');
+
+  getData('quotes').forEach(q=>{
+    let c=customers.find(x=>x.id==q.customerId);
+    list.innerHTML+=`<div class='card'>
+    <b>${c?c.name:''}</b><br>
+    ${q.desc}<br>
+    Total: $${q.total}<br>
+    ${q.status==='Draft'?`<button onclick='approveQuote(${q.id})'>Approve</button>`:''}
+    </div>`;
   });
-  saveData('quotes', quotes);
 }
 
-// APPROVE QUOTE → CREATE JOB
-function approveQuote(quoteId) {
-  let quotes = getData('quotes');
-  let jobs = getData('jobs');
+// JOBS
+function completeJob(id){
+  let jobs=getData('jobs');
+  let invoices=getData('invoices');
+  let j=jobs.find(x=>x.id==id);
+  j.status='Done';
 
-  let quote = quotes.find(q => q.id === quoteId);
-  quote.status = "Approved";
+  let total = (j.labor * LABOR_RATE) + Number(j.materials) + SERVICE_CALL;
 
-  jobs.push({
-    id: Date.now(),
-    quoteId: quote.id,
-    customerId: quote.customerId,
-    desc: quote.desc,
-    status: "Scheduled",
-    hours: 0
+  invoices.push({id:Date.now(),customerId:j.customerId,total,status:'Unpaid'});
+
+  saveData('jobs',jobs);
+  saveData('invoices',invoices);
+}
+
+function renderJobs(){
+  let list=document.getElementById('jobList');
+  list.innerHTML='';
+  let customers=getData('customers');
+
+  getData('jobs').forEach(j=>{
+    let c=customers.find(x=>x.id==j.customerId);
+    list.innerHTML+=`<div class='card'>
+    <b>${c?c.name:''}</b><br>
+    ${j.desc}<br>
+    ${j.status!=='Done'?`<button onclick='completeJob(${j.id})'>Complete</button>`:''}
+    </div>`;
+  });
+}
+
+// INVOICES
+function markPaid(id){
+  let data=getData('invoices');
+  let i=data.find(x=>x.id==id);
+  i.status='Paid';
+  saveData('invoices',data);
+}
+
+function renderInvoices(){
+  let list=document.getElementById('invoiceList');
+  list.innerHTML='';
+  let customers=getData('customers');
+
+  getData('invoices').forEach(i=>{
+    let c=customers.find(x=>x.id==i.customerId);
+    list.innerHTML+=`<div class='card'>
+    <b>${c?c.name:''}</b><br>
+    Total: $${i.total}<br>
+    ${i.status==='Unpaid'?`<button onclick='markPaid(${i.id})'>Mark Paid</button>`:''}
+    </div>`;
+  });
+}
+
+// DASHBOARD
+function renderDashboard(){
+  let invoices=getData('invoices');
+  let total=0, unpaid=0;
+
+  invoices.forEach(i=>{
+    if(i.status==='Paid') total+=i.total;
+    else unpaid+=i.total;
   });
 
-  saveData('quotes', quotes);
-  saveData('jobs', jobs);
+  document.getElementById('stats').innerHTML=`
+    <div class='card'>Revenue: $${total}</div>
+    <div class='card'>Unpaid: $${unpaid}</div>
+    <button onclick='loadFromCloud()'>Restore From Cloud</button>
+  `;
 }
 
-// COMPLETE JOB → CREATE INVOICE
-function completeJob(jobId) {
-  let jobs = getData('jobs');
-  let invoices = getData('invoices');
-
-  let job = jobs.find(j => j.id === jobId);
-  job.status = "Done";
-
-  let laborTotal = job.hours * 90; // your rate
-
-  invoices.push({
-    id: Date.now(),
-    jobId: job.id,
-    customerId: job.customerId,
-    total: laborTotal,
-    status: "Unpaid"
-  });
-
-  saveData('jobs', jobs);
-  saveData('invoices', invoices);
+function renderAll(){
+  renderCustomers();
+  renderQuotes();
+  renderJobs();
+  renderInvoices();
+  renderDashboard();
 }
 
-// MARK INVOICE PAID
-function markPaid(invoiceId) {
-  let invoices = getData('invoices');
-  let invoice = invoices.find(i => i.id === invoiceId);
-  invoice.status = "Paid";
-  saveData('invoices', invoices);
-}
-</script>
+renderAll();
+</script></body>
+</html>
